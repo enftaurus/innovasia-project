@@ -80,4 +80,4 @@ class chat(BaseModel):
     user_message:str
 @app.post("/chatbot")
 def responses (message:chat):
-
+    
