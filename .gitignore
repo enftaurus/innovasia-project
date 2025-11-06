@@ -1,0 +1,44 @@
+# 🧠 Python cache and environment
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# 📦 Virtual environment folders
+ENV/
+env.bak/
+venv.bak/
+
+# ⚙️ IDE & editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 🤖 Machine learning models
+*.pkl
+*.joblib
+*.sav
+*.h5
+*.pt
+
+# 🧾 Logs and data
+*.log
+*.csv
+*.xlsx
+*.json
+
+# 📂 OS generated files
+.DS_Store
+Thumbs.db
+
+# 🚀 Deployment/Build artifacts
+*.egg-info/
+build/
+dist/
+.env
+config.py
