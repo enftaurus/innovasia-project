@@ -41,7 +41,7 @@ def predict(data: features):
         data.exercisefreq,
         data.socialactivity,
         data.onlinestress,
-        data.gpa,
+        data.gpa*0.4,
         data.familysupport,
         data.screentime,
         data.academicstress,
