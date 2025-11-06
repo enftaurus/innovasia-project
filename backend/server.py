@@ -3,9 +3,9 @@ import joblib
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
-import os
-from dotenv import load_dotenv
-import google.generativeai as genai
+# import os
+# from dotenv import load_dotenv
+# import google.generativeai as genai
 model=joblib.load('model.pkl')
 app=FastAPI()
 app.add_middleware(
@@ -31,8 +31,8 @@ class features(BaseModel):
     financialstress:float #0-10
     sleepquality:float #0-10
 
-@app.post("/predict")
-def predict(data: features):
+@app.post("/submit-assessment")
+def submit_assessment(data: features):
     # Convert input data into model-friendly format
     input_data = np.array([[
         data.phq9,
@@ -72,12 +72,12 @@ def predict(data: features):
         "prediction": int(prediction),
         "message": message
     }
-load_dotenv()
-G_API=os.getenv("GOOGLE_API_KEY")
-genai.configure(api_key=G_API)
-chatmodel=genai.GenerativeModel("gemini-2.0-flash")
-class chat(BaseModel):
-    user_message:str
-@app.post("/chatbot")
-def responses (message:chat):
+# load_dotenv()
+# G_API=os.getenv("GOOGLE_API_KEY")
+# genai.configure(api_key=G_API)
+# chatmodel=genai.GenerativeModel("gemini-2.0-flash")
+# class chat(BaseModel):
+#     user_message:str
+# @app.post("/chatbot")
+# def responses (message:chat):
     
