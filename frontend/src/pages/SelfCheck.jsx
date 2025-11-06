@@ -216,40 +216,42 @@ export default function SelfCheck() {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   // -------------------- Submit --------------------
-  const handleSubmit = async () => {
-    setSubmitting(true);
-    try {
-      // compute total scores
-      const phq9 = formData.phq9.reduce((a, b) => a + (b ?? 0), 0);
-      const gad7 = formData.gad7.reduce((a, b) => a + (b ?? 0), 0);
+  const [serverMessage, setServerMessage] = useState("");
 
-      const payload = {
-        ...formData,
-        phq9,
-        gad7,
-      };
+const handleSubmit = async () => {
+  setSubmitting(true);
+  try {
+    const phq9 = formData.phq9.reduce((a, b) => a + (b ?? 0), 0);
+    const gad7 = formData.gad7.reduce((a, b) => a + (b ?? 0), 0);
 
-      // send to backend
-      await axios.post(`${import.meta.env.VITE_API_URL}/submit-assessment`, payload);
+    const payload = { ...formData, phq9, gad7 };
 
-      setSubmitted(true);
-    } catch (err) {
-      console.error(err);
-      alert("Error submitting assessment — please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    // ✅ Get backend response
+    const res = await axios.post(`${import.meta.env.VITE_API_URL}/submit-assessment`, payload);
+
+    // ✅ Extract backend message
+    setServerMessage(res.data.message);
+
+    setSubmitted(true);
+  } catch (err) {
+    console.error(err);
+    alert("Error submitting assessment — please try again.");
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   // -------------------- UI --------------------
   if (submitted)
-    return (
-      <div className="form-success">
-        <CheckCircle2 size={64} color="#22c55e" />
-        <h2>Assessment submitted successfully!</h2>
-        <p>Thank you for taking the time to complete your check-in. 💚</p>
-      </div>
-    );
+  return (
+    <div className="form-success">
+      <CheckCircle2 size={64} color="#22c55e" />
+      <h2>Assessment Result</h2>
+      <p>{serverMessage || "Assessment submitted successfully!"}</p>
+    </div>
+  );
+
 
   return (
     <motion.div
