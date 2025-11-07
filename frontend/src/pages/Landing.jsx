@@ -1,93 +1,132 @@
 import React from "react";
+import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import group573 from "../assets/group-573.png";
+import group863 from "../assets/group-863.png";
+import group1723 from "../assets/group-1723.png";
 
 export default function Landing() {
   const navigate = useNavigate();
 
   return (
-    <section className="landing">
-      {/* HERO SECTION */}
-      <div className="hero-landing">
-        <div className="overlay">
-          <div className="container">
-            <h1>
-              Welcome to <span>Student Sanctuary</span>
-            </h1>
-            <p>
-              Empowering students with mental wellness tools, self-assessments,
-              and guided support for a balanced, healthier mind.
-            </p>
-            <div className="cta">
-              <button className="btn primary" onClick={() => navigate("/login")}>
-                Get Started
-              </button>
-              <button className="btn ghost" onClick={() => navigate("/videos")}>
-                Explore Resources
-              </button>
+    <div className="landing-container">
+      {/* ================= HERO SECTION ================= */}
+      <section className="landing-hero">
+        <motion.div
+          className="hero-text"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1 }}
+        >
+          <h1>Welcome to <span>Student Sanctuary 🌿</span></h1>
+          <p>
+            A safe and empowering space where students can assess, understand,
+            and improve their mental wellness.  
+            Let’s help you find balance, focus, and emotional clarity — because
+            your mind matters.
+          </p>
+          <button
+            onClick={() => navigate("/selfcheck")}
+            className="btn primary"
+          >
+            Take Wellness Test
+          </button>
+        </motion.div>
+
+        <motion.img
+          src={group573}
+          alt="Student support illustration"
+          className="hero-illustration"
+          initial={{ opacity: 0, x: 60 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 1 }}
+        />
+      </section>
+
+      {/* ================= ABOUT TEST SECTION ================= */}
+      <section className="about-test">
+        <motion.img
+          src={group863}
+          alt="Mental health growth illustration"
+          className="about-img"
+          initial={{ opacity: 0, y: 50 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1 }}
+        />
+        <div className="about-text">
+          <h2>About the Wellness Test 🧠</h2>
+          <p>
+            This assessment helps you understand your overall mental health using 
+            globally recognized tools like <strong>PHQ-9</strong> and <strong>GAD-7</strong>,
+            along with lifestyle factors such as sleep, exercise, diet, and relationships.
+          </p>
+          <p>
+            Each response is scored to create your unique <strong>Wellness Index</strong>, 
+            giving you instant insights into your mental balance, stress levels, and 
+            areas for improvement.
+          </p>
+          <div className="about-stats">
+            <div>
+              <h3>15+</h3>
+              <p>Wellness Factors</p>
+            </div>
+            <div>
+              <h3>3 min</h3>
+              <p>Quick, Easy Test</p>
+            </div>
+            <div>
+              <h3>100%</h3>
+              <p>Instant Personalized Report</p>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* ABOUT SECTION */}
-      <div className="section fade-section">
-        <div className="container grid grid-2">
-          <div>
-            <h2>Why Student Sanctuary?</h2>
-            <p>
-              We know student life can be stressful — with classes, exams, and
-              social challenges. Our platform helps you track your emotional
-              well-being, practice mindfulness, and connect to support when you
-              need it most.
-            </p>
-            <ul>
-              <li>✔ Scientifically validated self-check tools (PHQ-9 & GAD-7)</li>
-              <li>✔ AI-guided chat for stress & motivation</li>
-              <li>✔ Counselor appointments and progress tracking</li>
-            </ul>
-          </div>
-          <img
-            src="https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1200&q=80"
-            alt="Happy students"
-            style={{ borderRadius: "14px", boxShadow: "var(--shadow-soft)" }}
-          />
-        </div>
-      </div>
-
-      {/* GALLERY SECTION */}
-      <div className="section fade-section">
-        <div className="container">
-          <h2>Discover Wellness in Motion</h2>
-          <div className="grid grid-3">
-            {[
-              "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1200&q=80",
-              "https://images.unsplash.com/photo-1521737604893-d14cc237f11d?auto=format&fit=crop&w=1200&q=80",
-              "https://images.unsplash.com/photo-1504386106331-3e4e71712b38?auto=format&fit=crop&w=1200&q=80",
-            ].map((src, i) => (
-              <img
-                key={i}
-                src={src}
-                alt="wellness"
-                style={{
-                  borderRadius: "16px",
-                  boxShadow: "var(--shadow-soft)",
-                  width: "100%",
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* CTA JOIN SECTION */}
-      <div className="cta-banner fade-section">
-        <div className="container">
-          <h2>Take the first step toward a calmer, stronger you</h2>
-          <button className="btn primary" onClick={() => navigate("/register")}>
-            Join Now
+      {/* ================= HOW IT WORKS SECTION ================= */}
+      <section className="how-it-works">
+        <div className="how-text">
+          <h2>How It Works ⚙️</h2>
+          <ul>
+            <li>✔️ Answer simple questions about your emotions and habits.</li>
+            <li>✔️ Our model calculates your personalized wellness score.</li>
+            <li>✔️ Get clear recommendations for better mental balance.</li>
+            <li>✔️ No data stored — your privacy and safety come first.</li>
+          </ul>
+          <button
+            className="btn secondary"
+            onClick={() => navigate("/selfcheck")}
+          >
+            Begin Test
           </button>
         </div>
-      </div>
-    </section>
+        <motion.img
+          src={group1723}
+          alt="Calm mind illustration"
+          className="how-img"
+          initial={{ opacity: 0, scale: 0.8 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1 }}
+        />
+      </section>
+
+      {/* ================= FINAL CTA SECTION ================= */}
+      <section className="landing-cta">
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          transition={{ duration: 1 }}
+        >
+          <h2>Let’s Begin Your Journey to a Healthier Mind 💬</h2>
+          <p>
+            It only takes a few minutes to reflect on your wellness and get
+            insights that can truly make a difference in your academic and
+            personal life.
+          </p>
+          <button className="btn primary" onClick={() => navigate("/selfcheck")}>
+            Start Now
+          </button>
+        </motion.div>
+      </section>
+    </div>
   );
 }
