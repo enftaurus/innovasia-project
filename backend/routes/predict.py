@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from models.Features import features
 from ml.stress_model import ml_model
 import numpy as np
+from database import supabase
 router =APIRouter(prefix="/submit-assessment",tags=["predict"])
 
 #prediction
