@@ -47,7 +47,7 @@ def sign_up(details: cred):
 
     otp = random.randint(100000, 999999)
     try:
-        supabase.table("otp_table").insert({"email": details.mail, "otp": otp}).execute()
+        supabase.table("otp_table").upsert({"email": details.mail, "otp": otp}).execute()
         message = f"""\
 Subject: Your Student Sanctuary Verification Code
 
