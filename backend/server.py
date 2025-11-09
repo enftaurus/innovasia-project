@@ -34,7 +34,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import predict, chatbot, register, login, logout
-from database import supabase
+from routes import profile
+from backend.database import supabase
 
 app = FastAPI(title="Student Sanctuary Backend", version="5.0")
 
@@ -56,6 +57,7 @@ app.include_router(chatbot.router)
 app.include_router(register.router)
 app.include_router(login.router)
 app.include_router(logout.router)
+app.include_router(profile.router)
 
 @app.get("/")
 def root():
