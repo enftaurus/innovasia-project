@@ -5,16 +5,19 @@ from routes import predict
 from routes import chatbot
 from routes import register
 from routes import login
+from routes import logout
 from database import supabase
 app = FastAPI(title="Student Sanctuary Backend", version="5.0")
 app.include_router(predict.router)
 app.include_router(chatbot.router)
 app.include_router(register.router)
 app.include_router(login.router)
+app.include_router(logout.router)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all for now
+    allow_credentials="True",
     allow_methods=["*"],
     allow_headers=["*"],
 )

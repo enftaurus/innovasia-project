@@ -1,13 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status,Request
 from models.Features import features
 from ml.stress_model import ml_model
 import numpy as np
 from database import supabase
-router =APIRouter(prefix="/submit-assessment",tags=["predict"])
+
+router = APIRouter(prefix="/submit-assessment", tags=["predict"])
 
 #prediction
 @router.post("/")
-def submit_assessment(data: features):
+def submit_assessment(data: features,request:Request):
     """Instantly analyze mental wellness and lifestyle feedback."""
     try:
         input_data = np.array([[
@@ -29,26 +30,42 @@ def submit_assessment(data: features):
         ]])
 
         # Prediction
-        prediction = 0
-        if ml_model:
-            prediction = int(ml_model.predict(input_data)[0])
+        if not ml_model:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Model not loaded. Please try again later."
+            )
+
+        prediction = int(ml_model.predict(input_data)[0])
+        mail=request.cookies.get("user_email")
+        is_stressed = False if prediction == 1 else True
+        y=data.model_dump()
+        y['mail']=mail
+        y['is_stressed']=is_stressed
+        supabase.table("mental_health").upsert(y, on_conflict="mail").execute()
+
+
 
         # Message
         message = (
-    "✅ Your responses suggest you’re maintaining a good emotional balance. "
-    "Keep nurturing those healthy habits and staying consistent with your routine!"
-    if prediction == 1
-    else "🧠 Your stress indicators seem slightly elevated. "
-         "Try incorporating more rest, breaks, and positive coping habits — you’ve got this!"
-)
-
+            "✅ Your responses suggest you’re maintaining a good emotional balance. "
+            "Keep nurturing those healthy habits and staying consistent with your routine!"
+            if prediction == 1
+            else "🧠 Your stress indicators seem slightly elevated. "
+                 "Try incorporating more rest, breaks, and positive coping habits — you’ve got this!"
+        )
 
         feedback = generate_lifestyle_feedback(data)
         return {"prediction": prediction, "message": message, "ai_feedback": feedback}
 
+    except HTTPException:
+        raise
     except Exception as e:
         print("❌ Error in /submit-assessment:", e)
-        return {"error": "Server error", "details": str(e)}
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server error: {str(e)}"
+        )
 
 #customised reply
 def generate_lifestyle_feedback(d: features) -> str:
