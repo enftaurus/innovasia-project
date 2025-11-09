@@ -45,7 +45,7 @@ const EXTRAS = [
   { key: "screentime", label: "Screen time (hrs/day)", min: 0, max: 24 },
   { key: "academicstress", label: "Academic stress (0–10)", min: 0, max: 10 },
   { key: "dietquality", label: "Diet quality (0–10)", min: 0, max: 10 },
-  { key: "selfefficiency", label: "Self-efficacy (0–10)", min: 0, max: 10 },
+  { key: "selfefficiency", label: "Self-efficiency (0–10)", min: 0, max: 10 },
   { key: "peerrelationship", label: "Peer relationships (0–10)", min: 0, max: 10 },
   { key: "financialstress", label: "Financial stress (0–10)", min: 0, max: 10 },
   { key: "sleepquality", label: "Sleep quality (0–10)", min: 0, max: 10 },
@@ -220,7 +220,7 @@ export default function SelfCheck() {
             <div className="bm-result-wrap">
               <Gauge score={resultScore}/>
               <div>
-                <h3 style={{ color: sev.color }}>{sev.label} Wellness ({resultScore}/40)</h3>
+                <h3 style={{ color: sev.color }}>{sev.label} Stress ({resultScore}/40)</h3>
                 <p>{serverMessage}</p>
                 <div className="ai-feedback">
                   <h3>AI Insights</h3>
