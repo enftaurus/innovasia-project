@@ -41,6 +41,9 @@ from routes import login
 from routes import logout
 from routes import profile
 from routes import session
+from routes import counsellor_login
+from routes import counsellor_logout
+from routes import counsellor_profile
 from database import supabase
 
 app = FastAPI(title="Student Sanctuary Backend", version="5.0")
@@ -65,6 +68,9 @@ app.include_router(login.router)
 app.include_router(logout.router)
 app.include_router(profile.router)
 app.include_router(session.router)
+app.include_router(counsellor_profile.router)
+app.include_router(counsellor_login.router)
+app.include_router(counsellor_logout.router)
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Student Sanctuary Backend Active 🚀"}
