@@ -19,6 +19,7 @@ def view_profile(request: Request):
     Fetch the current user's profile using their cookie (user_mail).
     """
     mail = request.cookies.get("user_mail")
+    print(mail)
     if not mail:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
