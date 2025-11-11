@@ -1,31 +1,43 @@
+// src/pages/Profile.jsx
 import React, { useEffect, useState } from "react";
-import { useAuth } from "../hooks/useAuth";
 import axios from "axios";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth"; // keep your existing hook path
 
 export default function Profile() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
+  const nav = useNavigate();
+
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errMsg, setErrMsg] = useState("");
 
-  // 🧠 Fetch user details from backend
   useEffect(() => {
-    const fetchProfile = async () => {
+    let cancelled = false;
+
+    (async () => {
       try {
-        if (!user?.email) return;
-        const res = await axios.get(
-          `http://127.0.0.1:8000/profile/${user.email}`,
-          { withCredentials: true }
-        );
-        setProfile(res.data);
+        setErrMsg("");
+        // Backend reads HttpOnly cookie; no email in URL
+        const res = await axios.get("/profile/"); // axios.defaults.baseURL + withCredentials recommended globally
+        if (!cancelled) setProfile(res.data.profile);
       } catch (err) {
+        const status = err?.response?.status;
+        if (status === 401) {
+          // session expired → logout and redirect
+          try { await logout(); } catch {}
+          if (!cancelled) nav("/login", { replace: true });
+          return;
+        }
+        if (!cancelled) setErrMsg("Couldn’t load your profile. Please try again.");
         console.error("❌ Error fetching profile:", err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
-    };
-    fetchProfile();
-  }, [user]);
+    })();
+
+    return () => { cancelled = true; };
+  }, [logout, nav]);
 
   if (loading) {
     return (
@@ -47,19 +59,20 @@ export default function Profile() {
     );
   }
 
-  if (!profile) {
+  if (errMsg || !profile) {
     return (
       <section className="section">
         <div className="container text-center" style={{ maxWidth: 640 }}>
-          <h2>Profile Not Found</h2>
-          <p>We couldn’t load your details. Please log in again.</p>
-          <button className="btn" onClick={logout}>
-            Log out
-          </button>
+          <h2>Profile</h2>
+          <p>{errMsg || "We couldn’t load your details."}</p>
+          <button className="btn" onClick={logout}>Log out</button>
         </div>
       </section>
     );
   }
+
+  const fmt = (v) => (v ?? "-");
+  const fmtDOB = (v) => (v ? new Date(v).toLocaleDateString() : "-");
 
   return (
     <section className="section">
@@ -91,33 +104,15 @@ export default function Profile() {
             gap: "1rem",
           }}
         >
-          <p>
-            <strong>Name:</strong> {profile.name}
-          </p>
-          <p>
-            <strong>Email:</strong> {profile.mail}
-          </p>
-          <p>
-            <strong>Age:</strong> {profile.age}
-          </p>
-          <p>
-            <strong>Gender:</strong> {profile.gender}
-          </p>
-          <p>
-            <strong>Date of Birth:</strong> {profile.dob}
-          </p>
-          <p>
-            <strong>Place:</strong> {profile.place}
-          </p>
-          <p>
-            <strong>Phone:</strong> {profile.phone}
-          </p>
-          <p>
-            <strong>Education:</strong> {profile.education}
-          </p>
-          <p>
-            <strong>Institution:</strong> {profile.institution}
-          </p>
+          <p><strong>Name:</strong> {fmt(profile.name)}</p>
+          <p><strong>Email:</strong> {fmt(profile.mail)}</p>
+          <p><strong>Age:</strong> {fmt(profile.age)}</p>
+          <p><strong>Gender:</strong> {fmt(profile.gender)}</p>
+          <p><strong>Date of Birth:</strong> {fmtDOB(profile.dob)}</p>
+          <p><strong>Place:</strong> {fmt(profile.place)}</p>
+          <p><strong>Phone:</strong> {fmt(profile.phone)}</p>
+          <p><strong>Education:</strong> {fmt(profile.education)}</p>
+          <p><strong>Institution:</strong> {fmt(profile.institution)}</p>
         </div>
 
         <div
@@ -128,12 +123,8 @@ export default function Profile() {
             gap: "1rem",
           }}
         >
-          <Link to="/appointments" className="btn">
-            📅 Book Appointment
-          </Link>
-          <button className="btn" onClick={logout}>
-            🚪 Log Out
-          </button>
+          <Link to="/appointments" className="btn">📅 Book Appointment</Link>
+          <button className="btn" onClick={logout}>🚪 Log Out</button>
         </div>
       </div>
     </section>

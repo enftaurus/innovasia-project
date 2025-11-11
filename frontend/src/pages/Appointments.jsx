@@ -23,24 +23,24 @@ const FOCUS_AREAS = [
 const COUNSELORS = [
   {
     id: "cns-elena",
-    name: "Elena Rao",
+    name: "AKASH",
     creds: "M.Sc, RCI",
     focus: ["Anxiety", "Sleep", "Study Stress"],
-    img: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=600&q=80",
+    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/prem.jpeg",
   },
   {
     id: "cns-faisal",
-    name: "Faisal Ahmed",
+    name: "DHANUSH",
     creds: "Ph.D., Clinical Psych.",
     focus: ["Depression", "Motivation", "Panic"],
-    img: "https://images.unsplash.com/photo-1573497019418-b400bb3ab074?auto=format&fit=crop&w=600&q=80",
+    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/dhanush.jpeg",
   },
   {
     id: "cns-nat",
-    name: "Natalie Chen",
+    name: "PREM",
     creds: "M.Phil, CBT",
     focus: ["Relationships", "Time Management", "Study Stress"],
-    img: "https://images.unsplash.com/photo-1547425260-76bcadfb4f2c?auto=format&fit=crop&w=600&q=80",
+    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/akash.jpeg",
   },
 ];
 
