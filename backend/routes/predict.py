@@ -37,12 +37,34 @@ def submit_assessment(data: features,request:Request):
             )
 
         prediction = int(ml_model.predict(input_data)[0])
-        mail=request.cookies.get("user_email")
+        mail = request.cookies.get("user_mail")
+        print(f"Predict endpoint - Cookie value: {mail}")
+        print(f"All cookies: {request.cookies}")
+        
+        if not mail:
+            print("⚠️ Warning: No mail found in cookies for predict endpoint")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not logged in. Please log in to save your assessment."
+            )
+        
         is_stressed = False if prediction == 1 else True
-        y=data.model_dump()
-        y['mail']=mail
-        y['is_stressed']=is_stressed
-        supabase.table("mental_health").upsert(y, on_conflict="mail").execute()
+        y = data.model_dump()
+        y['mail'] = mail
+        y['is_stressed'] = is_stressed
+        
+        print(f"Inserting mental_health data with mail: {mail}")
+        print(f"Data to insert: {y}")
+        
+        try:
+            result = supabase.table("mental_health").upsert(y, on_conflict="mail").execute()
+            print(f"✅ Successfully inserted/updated mental_health data: {result.data}")
+        except Exception as e:
+            print(f"❌ Error inserting mental_health data: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save assessment data: {str(e)}"
+            )
 
 
 
