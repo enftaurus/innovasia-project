@@ -1,529 +1,480 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useForm, Controller } from "react-hook-form";
+import React, { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import toast from "react-hot-toast";
-import { postAppointment } from "../services/api";
+import axios from "axios";
 import { useAuth } from "../hooks/useAuth";
 
 /** ========= Utility bits ========= */
 
-const FOCUS_AREAS = [
-  "Anxiety",
-  "Sleep",
-  "Depression",
-  "Study Stress",
-  "Relationships",
-  "Motivation",
-  "Panic",
-  "Time Management",
-  "Other",
-];
-
-const COUNSELORS = [
-  {
-    id: "cns-elena",
-    name: "AKASH",
-    creds: "M.Sc, RCI",
-    focus: ["Anxiety", "Sleep", "Study Stress"],
-    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/prem.jpeg",
-  },
-  {
-    id: "cns-faisal",
-    name: "DHANUSH",
-    creds: "Ph.D., Clinical Psych.",
-    focus: ["Depression", "Motivation", "Panic"],
-    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/dhanush.jpeg",
-  },
-  {
-    id: "cns-nat",
-    name: "PREM",
-    creds: "M.Phil, CBT",
-    focus: ["Relationships", "Time Management", "Study Stress"],
-    img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/akash.jpeg",
-  },
-];
-
-const slotTemplate = [
-  "09:30",
-  "10:15",
-  "11:00",
-  "11:45",
-  "14:00",
-  "14:45",
-  "15:30",
-  "16:15",
-  "17:00",
-];
-
-// Return YYYY-MM-DD
 const fmtDate = (d) => new Date(d).toISOString().slice(0, 10);
 
-const combineDateTimeToISO = (dateStr, timeStr) => {
-  // timeStr like "14:45"
-  const [h, m] = timeStr.split(":").map(Number);
-  const dt = new Date(dateStr);
-  dt.setHours(h);
-  dt.setMinutes(m);
-  dt.setSeconds(0);
-  dt.setMilliseconds(0);
-  return dt.toISOString();
+// Slot labels mapping
+const SLOT_LABELS = {
+  slot1: "09:00 - 10:00",
+  slot2: "10:00 - 11:00",
+  slot3: "11:00 - 12:00",
+  slot4: "14:00 - 15:00",
+  slot5: "15:00 - 16:00",
 };
-
-const ticketId = () =>
-  "APT-" + Math.random().toString(36).slice(2, 7).toUpperCase();
 
 /** ========= Validation ========= */
 
-const schema = z
-  .object({
-    firstName: z.string().min(2, "Enter your first name"),
-    lastName: z.string().min(2, "Enter your last name"),
-    email: z.string().email("Enter a valid email"),
-    phone: z
-      .string()
-      .optional()
-      .refine((v) => !v || /^[0-9+\-\s()]{7,}$/.test(v), "Invalid phone"),
-    focusAreas: z.array(z.string()).min(1, "Pick at least one area"),
-    goal: z
-      .string()
-      .min(4, "Tell us your primary goal")
-      .max(220, "Keep it short (<=220 chars)"),
-    date: z.string().min(1, "Pick a date"),
-    time: z.string().min(1, "Pick a time slot"),
-    counselorId: z.string().min(1, "Choose a counselor preference"),
-    shareScores: z.boolean().optional(),
-    consent: z.literal(true, {
-      errorMap: () => ({ message: "Please accept privacy & consent" }),
-    }),
-  })
-  .refine(
-    (data) => {
-      // same-day bookings allowed if 2h in future
-      const iso = combineDateTimeToISO(data.date, data.time);
-      return new Date(iso).getTime() > Date.now() + 60 * 60 * 1000;
-    },
-    { message: "Please select a time at least 1 hour from now.", path: ["time"] }
-  );
+const schema = z.object({
+  name: z.string().min(2, "Enter your name"),
+  email: z.string().email("Enter a valid email"),
+  phone: z.string().min(10, "Enter a valid phone number"),
+  problem: z.string().min(10, "Tell us about your problem (min 10 characters)"),
+  why_stressed: z.string().min(10, "Tell us why you are stressed (min 10 characters)"),
+  counsellor_id: z.string().min(1, "Please select a counsellor"),
+  date: z.string().min(1, "Pick a date"),
+  slot: z.string().min(1, "Pick a time slot"),
+  consent: z.literal(true, {
+    errorMap: () => ({ message: "Please accept consent to proceed" }),
+  }),
+});
 
 /** ========= Component ========= */
 
 export default function Appointments() {
   const { user } = useAuth();
   const [step, setStep] = useState(0);
-  const [submitted, setSubmitted] = useState(null); // confirmation payload
-  const [offline, setOffline] = useState(!navigator.onLine);
-
-  // Draft restore
-  const DRAFT_KEY = "ss:apptDraft:v2";
+  const [counsellors, setCounsellors] = useState([]);
+  const [loadingCounsellors, setLoadingCounsellors] = useState(true);
+  const [availableSlots, setAvailableSlots] = useState(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [selectedCounsellor, setSelectedCounsellor] = useState(null);
+  const [submitted, setSubmitted] = useState(null);
 
   const {
     register,
-    control,
     handleSubmit,
     watch,
     setValue,
-    reset,
-    formState: { errors, isSubmitting, isValid, isDirty },
+    formState: { errors, isSubmitting, isValid },
   } = useForm({
     resolver: zodResolver(schema),
     mode: "onChange",
     defaultValues: {
-      firstName: user?.displayName?.split(" ")[0] || "",
-      lastName:
-        user?.displayName?.split(" ").slice(1).join(" ") ||
-        (user?.displayName ? "" : ""),
+      name: user?.displayName || "",
       email: user?.email || "",
       phone: "",
-      focusAreas: [],
-      goal: "",
+      problem: "",
+      why_stressed: "",
+      counsellor_id: "",
       date: fmtDate(new Date(Date.now() + 24 * 3600 * 1000)),
-      time: "",
-      counselorId: COUNSELORS[0].id,
-      shareScores: true,
+      slot: "",
       consent: false,
     },
   });
 
   const values = watch();
 
-  /** ---------- Offline banner ---------- */
+  // Fetch counsellors on mount
   useEffect(() => {
-    const on = () => setOffline(false);
-    const off = () => setOffline(true);
-    window.addEventListener("online", on);
-    window.addEventListener("offline", off);
-    return () => {
-      window.removeEventListener("online", on);
-      window.removeEventListener("offline", off);
-    };
-  }, []);
-
-  /** ---------- Autosave draft ---------- */
-  useEffect(() => {
-    const save = () => {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(values));
-    };
-    const t = setTimeout(save, 350);
-    return () => clearTimeout(t);
-  }, [values]);
-
-  useEffect(() => {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) {
+    const fetchCounsellors = async () => {
       try {
-        const draft = JSON.parse(raw);
-        reset({ ...values, ...draft });
-        toast("Draft restored", { icon: "📝" });
-      } catch {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        const res = await axios.get("http://127.0.0.1:8000/appointments/counsellors", {
+          withCredentials: true,
+        });
+        setCounsellors(res.data.counsellors || []);
+      } catch (err) {
+        console.error("Error fetching counsellors:", err);
+        // Fallback to hardcoded counsellors
+        setCounsellors([
+          {
+            id: "cns-elena",
+            name: "AKASH",
+            mail: "akash@example.com",
+            specialization: ["Anxiety", "Sleep", "Study Stress"],
+            credentials: "M.Sc, RCI",
+            img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/prem.jpeg",
+          },
+          {
+            id: "cns-faisal",
+            name: "DHANUSH",
+            mail: "dhanush@example.com",
+            specialization: ["Depression", "Motivation", "Panic"],
+            credentials: "Ph.D., Clinical Psych.",
+            img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/dhanush.jpeg",
+          },
+          {
+            id: "cns-nat",
+            name: "PREM",
+            mail: "prem@example.com",
+            specialization: ["Relationships", "Time Management", "Study Stress"],
+            credentials: "M.Phil, CBT",
+            img: "https://sdbeqzvabcggpkmicvlk.supabase.co/storage/v1/object/public/counsellor%20pics/akash.jpeg",
+          },
+        ]);
+      } finally {
+        setLoadingCounsellors(false);
+      }
+    };
+    fetchCounsellors();
   }, []);
 
-  /** ---------- Slots for selected date ---------- */
-  const slots = useMemo(() => {
-    const d = new Date(values.date);
-    const day = d.getDay(); // 0 Sun .. 6 Sat
-    // Closed Sundays
-    if (day === 0) return [];
-    // Friday half day
-    const template = day === 5 ? slotTemplate.slice(0, 6) : slotTemplate;
-    // Make "past" slots unavailable if booking same day
-    const todayStr = fmtDate(new Date());
-    if (values.date === todayStr) {
-      const now = new Date();
-      const nowMin = now.getHours() * 60 + now.getMinutes();
-      return template.filter((t) => {
-        const [h, m] = t.split(":").map(Number);
-        return h * 60 + m > nowMin + 60; // keep >1h
-      });
+  // Fetch slots when counsellor and date are selected (on step 3 or 4)
+  useEffect(() => {
+    if (values.counsellor_id && values.date && (step === 3 || step === 4)) {
+      fetchSlots(values.counsellor_id, values.date);
     }
-    return template;
-  }, [values.date]);
+  }, [values.counsellor_id, values.date, step]);
 
-  /** ---------- Scores (optional share) ---------- */
-  const lastResult = useMemo(() => {
+  const fetchSlots = async (counsellorId, date) => {
+    if (!counsellorId || !date) {
+      setAvailableSlots(null);
+      return;
+    }
+    setLoadingSlots(true);
+    setAvailableSlots(null); // Clear previous slots
     try {
-      return JSON.parse(localStorage.getItem("mindmate:lastResult") || "null");
-    } catch {
-      return null;
+      const res = await axios.get(
+        `http://127.0.0.1:8000/appointments/slots/${counsellorId}/${date}`,
+        { withCredentials: true }
+      );
+      if (res.data?.available_slots) {
+        setAvailableSlots(res.data.available_slots);
+      } else {
+        toast.error("No slots data received");
+        setAvailableSlots(null);
+      }
+    } catch (err) {
+      console.error("Error fetching slots:", err);
+      toast.error(err.response?.data?.detail || "Failed to load available slots");
+      setAvailableSlots(null);
+    } finally {
+      setLoadingSlots(false);
     }
-  }, []);
+  };
+
+  // Update selected counsellor when counsellor_id changes
+  useEffect(() => {
+    if (values.counsellor_id) {
+      const counsellor = counsellors.find((c) => c.id === values.counsellor_id);
+      setSelectedCounsellor(counsellor);
+    }
+  }, [values.counsellor_id, counsellors]);
 
   /** ---------- Submit ---------- */
   const onSubmit = async (data) => {
-    const iso = combineDateTimeToISO(data.date, data.time);
-    const counselor = COUNSELORS.find((c) => c.id === data.counselorId);
+    if (!selectedCounsellor) {
+      toast.error("Please select a counsellor");
+      return;
+    }
+
     const payload = {
-      ...data,
-      when: iso,
-      counselor,
-      ticket: ticketId(),
-      createdAt: new Date().toISOString(),
-      scores:
-        data.shareScores && lastResult
-          ? {
-              phq: lastResult.phqScore,
-              gad: lastResult.gadScore,
-              risk: lastResult.risk,
-            }
-          : undefined,
+      name: data.name,
+      mail: data.email,
+      phone: data.phone,
+      counsellor_id: data.counsellor_id,
+      counsellor_name: selectedCounsellor.name,
+      counsellor_mail: selectedCounsellor.mail,
+      date: data.date,
+      focus_goals: [data.problem], // Using problem as focus goal
+      work_problem: data.why_stressed,
+      slot: data.slot,
+      consent: data.consent,
     };
 
     try {
-      await postAppointment(payload);
-      toast.success("Appointment request sent");
-    } catch {
-      // graceful offline / mock
-      const outbox = JSON.parse(localStorage.getItem("ss:outbox") || "[]");
-      outbox.push({ type: "appointment", payload });
-      localStorage.setItem("ss:outbox", JSON.stringify(outbox));
-      toast("Saved to Outbox (offline demo)", { icon: "📦" });
+      const res = await axios.post("http://127.0.0.1:8000/appointments/book", payload, {
+        withCredentials: true,
+      });
+      toast.success("Appointment booked successfully!");
+      setSubmitted(res.data);
+      setStep(5);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      console.error("Booking error:", err);
+      toast.error(err.response?.data?.detail || "Failed to book appointment");
     }
-    localStorage.removeItem(DRAFT_KEY);
-    setSubmitted(payload);
-    setStep(4);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   /** ---------- Helpers ---------- */
-  const next = () => setStep((s) => Math.min(3, s + 1));
-  const back = () => setStep((s) => Math.max(0, s - 1));
-
-  /** ---------- Export JSON ---------- */
-  const exportJson = (obj, name = "appointment.json") => {
-    const blob = new Blob([JSON.stringify(obj, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    a.click();
-    URL.revokeObjectURL(url);
+  const next = () => {
+    // Validate current step before proceeding
+    if (step === 0) {
+      if (!values.name || !values.email || !values.phone || !values.problem || !values.why_stressed) {
+        toast.error("Please fill all required fields");
+        return;
+      }
+    }
+    if (step === 1) {
+      if (!values.counsellor_id) {
+        toast.error("Please select a counsellor");
+        return;
+      }
+    }
+    if (step === 2) {
+      if (!values.date) {
+        toast.error("Please select a date");
+        return;
+      }
+      // Fetch slots when moving to step 4 (slot selection)
+      if (values.counsellor_id && values.date) {
+        fetchSlots(values.counsellor_id, values.date);
+      }
+    }
+    if (step === 3) {
+      if (!values.slot) {
+        toast.error("Please select a time slot");
+        return;
+      }
+    }
+    setStep((s) => Math.min(4, s + 1));
   };
+
+  const back = () => setStep((s) => Math.max(0, s - 1));
 
   /** ---------- UI ---------- */
 
-  // Step content blocks (kept inline for clarity)
+  // Step 1: Basic Details
   const Step1 = (
     <div className="appt-card">
-      <h3 className="appt-h3">Your details</h3>
+      <h3 className="appt-h3">Your Details</h3>
       <div className="form">
-        <label>
-          First name
-          <input {...register("firstName")} />
-          {errors.firstName && <span className="error">{errors.firstName.message}</span>}
-        </label>
-        <label>
-          Last name
-          <input {...register("lastName")} />
-          {errors.lastName && <span className="error">{errors.lastName.message}</span>}
+        <label className="full">
+          Full Name
+          <input {...register("name")} placeholder="Enter your full name" />
+          {errors.name && <span className="error">{errors.name.message}</span>}
         </label>
         <label className="full">
           Email
-          <input type="email" {...register("email")} />
+          <input type="email" {...register("email")} placeholder="your.email@example.com" />
           {errors.email && <span className="error">{errors.email.message}</span>}
         </label>
         <label className="full">
-          Phone (optional)
-          <input placeholder="+91 98 76 54 321" {...register("phone")} />
+          Phone
+          <input {...register("phone")} placeholder="+91 98 76 54 321" />
           {errors.phone && <span className="error">{errors.phone.message}</span>}
-          <div className="help">We’ll only call if we can’t reach you by email.</div>
+        </label>
+        <label className="full">
+          What is your problem? *
+          <textarea
+            {...register("problem")}
+            rows={4}
+            placeholder="Describe what you're struggling with..."
+          />
+          {errors.problem && <span className="error">{errors.problem.message}</span>}
+        </label>
+        <label className="full">
+          Why are you stressed? *
+          <textarea
+            {...register("why_stressed")}
+            rows={4}
+            placeholder="Tell us what's causing your stress..."
+          />
+          {errors.why_stressed && <span className="error">{errors.why_stressed.message}</span>}
         </label>
       </div>
     </div>
   );
 
+  // Step 2: Select Counsellor
   const Step2 = (
     <div className="appt-card">
-      <h3 className="appt-h3">Focus & goals</h3>
-      <div className="grid-3">
-        {FOCUS_AREAS.map((k) => {
-          const on = values.focusAreas?.includes(k);
-          return (
-            <button
-              type="button"
-              key={k}
-              className={`pill appt-pill ${on ? "on" : ""}`}
-              onClick={() => {
-                const set = new Set(values.focusAreas || []);
-                set.has(k) ? set.delete(k) : set.add(k);
-                setValue("focusAreas", Array.from(set), { shouldValidate: true });
-              }}
-            >
-              {on ? "✅" : "◻️"} {k}
-            </button>
-          );
-        })}
-      </div>
-      {errors.focusAreas && (
-        <div className="error mt-2">{errors.focusAreas.message}</div>
-      )}
-
-      <label className="full mt-4">
-        In one sentence, what would you like to work on first?
-        <input placeholder="e.g., reduce exam anxiety & sleep better" {...register("goal")} />
-        <div className="help">
-          This helps your counselor start strong on the first session.
+      <h3 className="appt-h3">Select a Counsellor</h3>
+      <p className="text-muted mb-3">
+        Based on your problem, we recommend these counsellors:
+      </p>
+      {loadingCounsellors ? (
+        <div className="text-center">Loading counsellors...</div>
+      ) : (
+        <div className="counselor-grid">
+          {counsellors.map((c) => {
+            const on = values.counsellor_id === c.id;
+            return (
+              <label key={c.id} className={`c-card ${on ? "on" : ""}`}>
+                <input
+                  type="radio"
+                  value={c.id}
+                  {...register("counsellor_id")}
+                  className="hidden"
+                />
+                {c.img && <img src={c.img} alt={c.name} />}
+                <div className="c-meta">
+                  <strong>{c.name}</strong>
+                  {c.credentials && <span className="badge">{c.credentials}</span>}
+                  {c.specialization && (
+                    <div className="c-tags">
+                      {c.specialization.map((t) => (
+                        <span className="mini-tag" key={t}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </label>
+            );
+          })}
         </div>
-        {errors.goal && <span className="error">{errors.goal.message}</span>}
-      </label>
+      )}
+      {errors.counsellor_id && (
+        <div className="error mt-2">{errors.counsellor_id.message}</div>
+      )}
     </div>
   );
 
+  // Step 3: Select Date
   const Step3 = (
     <div className="appt-card">
-      <h3 className="appt-h3">Pick date & time</h3>
-
-      <div className="grid-2">
-        <label>
-          Preferred date
+      <h3 className="appt-h3">Select Date</h3>
+      <div className="form">
+        <label className="full">
+          Preferred Date
           <input
             type="date"
             min={fmtDate(new Date())}
             {...register("date")}
             onChange={(e) => {
-              setValue("time", "", { shouldValidate: true });
+              setValue("slot", ""); // Clear slot when date changes
+              setAvailableSlots(null); // Clear slots when date changes
               register("date").onChange(e);
             }}
           />
           {errors.date && <span className="error">{errors.date.message}</span>}
         </label>
-
-        <div>
-          <div className="help mb-2">Available slots (local time)</div>
-          <div className="slot-grid">
-            {slots.length ? (
-              slots.map((t) => {
-                const on = values.time === t;
-                return (
-                  <button
-                    key={t}
-                    type="button"
-                    className={`slot ${on ? "on" : ""}`}
-                    onClick={() => setValue("time", t, { shouldValidate: true })}
-                  >
-                    {t}
-                  </button>
-                );
-              })
-            ) : (
-              <div className="alert warn">Closed on Sundays — please pick another day.</div>
-            )}
+        {selectedCounsellor && (
+          <div className="alert info mt-3">
+            <strong>Selected Counsellor:</strong> {selectedCounsellor.name}
           </div>
-          {errors.time && <span className="error">{errors.time.message}</span>}
-        </div>
-      </div>
-
-      <div className="mt-4">
-        <div className="help">
-          Sessions are 45 minutes on Google Meet. You’ll receive a calendar invite.
-        </div>
+        )}
       </div>
     </div>
   );
 
+  // Step 4: Select Slot
   const Step4 = (
     <div className="appt-card">
-      <h3 className="appt-h3">Counselor preference</h3>
-      <div className="counselor-grid">
-        {COUNSELORS.map((c) => {
-          const on = values.counselorId === c.id;
-          return (
-            <label key={c.id} className={`c-card ${on ? "on" : ""}`}>
-              <input
-                type="radio"
-                value={c.id}
-                {...register("counselorId")}
-                className="hidden"
-              />
-              <img src={c.img} alt={c.name} />
-              <div className="c-meta">
-                <strong>{c.name}</strong>
-                <span className="badge">{c.creds}</span>
-                <div className="c-tags">
-                  {c.focus.map((t) => (
-                    <span className="mini-tag" key={t}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </label>
-          );
-        })}
-      </div>
-      {errors.counselorId && (
-        <div className="error mt-2">{errors.counselorId.message}</div>
+      <h3 className="appt-h3">Select Time Slot</h3>
+      {!values.counsellor_id || !values.date ? (
+        <div className="alert warn">Please select a counsellor and date first</div>
+      ) : loadingSlots ? (
+        <div className="text-center">Loading available slots...</div>
+      ) : availableSlots ? (
+        <div className="slot-grid">
+          {Object.entries(availableSlots).map(([slotKey, isAvailable]) => {
+            const on = values.slot === slotKey;
+            return (
+              <button
+                key={slotKey}
+                type="button"
+                className={`slot ${on ? "on" : ""} ${!isAvailable ? "disabled" : ""}`}
+                onClick={() => {
+                  if (isAvailable) {
+                    setValue("slot", slotKey, { shouldValidate: true });
+                  } else {
+                    toast.error("This slot is already booked");
+                  }
+                }}
+                disabled={!isAvailable}
+              >
+                {SLOT_LABELS[slotKey] || slotKey}
+                {!isAvailable && " (Booked)"}
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="alert warn">
+          No slots available. Please try selecting the date again or choose a different date.
+        </div>
       )}
+      {errors.slot && <div className="error mt-2">{errors.slot.message}</div>}
+    </div>
+  );
 
-      <div className="mt-4 grid-2">
-        <label>
-          <span className="row items-center gap-2">
-            <input type="checkbox" {...register("shareScores")} />
-            Share my latest PHQ-9 / GAD-7 results (optional)
-          </span>
-          <div className="help">
-            {lastResult
-              ? `Will share PHQ-9 ${lastResult.phqScore}, GAD-7 ${lastResult.gadScore} (${lastResult.risk}).`
-              : "No results found yet."}
-          </div>
-        </label>
-
-        <label className="row items-center gap-2">
-          <input type="checkbox" {...register("consent")} />
-          <span>
-            I understand this is not emergency care and agree to the{" "}
-            <a href="#" onClick={(e)=>e.preventDefault()}>privacy & consent</a>.
-          </span>
-        </label>
+  // Step 5: Consent & Submit
+  const Step5 = (
+    <div className="appt-card">
+      <h3 className="appt-h3">Review & Consent</h3>
+      <div className="card mb-3">
+        <h4>Appointment Summary</h4>
+        <ul className="kv">
+          <li>
+            <span>Name</span>
+            <strong>{values.name}</strong>
+          </li>
+          <li>
+            <span>Email</span>
+            <strong>{values.email}</strong>
+          </li>
+          <li>
+            <span>Phone</span>
+            <strong>{values.phone}</strong>
+          </li>
+          <li>
+            <span>Counsellor</span>
+            <strong>{selectedCounsellor?.name}</strong>
+          </li>
+          <li>
+            <span>Date</span>
+            <strong>{values.date}</strong>
+          </li>
+          <li>
+            <span>Time Slot</span>
+            <strong>{SLOT_LABELS[values.slot] || values.slot}</strong>
+          </li>
+        </ul>
       </div>
+      <label className="row items-center gap-2">
+        <input type="checkbox" {...register("consent")} />
+        <span>
+          I consent to share my mental health assessment data with the counsellor (if available)
+        </span>
+      </label>
       {errors.consent && <div className="error mt-2">{errors.consent.message}</div>}
     </div>
   );
 
-  const Review = (
+  // Step 6: Confirmation
+  const Step6 = submitted ? (
     <div className="appt-card">
-      <h3 className="appt-h3">Request sent ✅</h3>
+      <h3 className="appt-h3">Appointment Booked Successfully! ✅</h3>
       <p className="text-muted">
-        You’ll receive an email confirmation with a Meet link. Save or print this summary.
+        You'll receive an email confirmation shortly. Your appointment details:
       </p>
-
-      <div className="grid-2 mt-3">
-        <div className="card">
-          <h4>Booking</h4>
-          <ul className="kv">
-            <li><span>Ticket</span><strong>{submitted?.ticket}</strong></li>
-            <li><span>Date</span><strong>{submitted?.date}</strong></li>
-            <li><span>Time</span><strong>{submitted?.time}</strong></li>
-            <li><span>When (local)</span><strong>{new Date(submitted?.when).toLocaleString()}</strong></li>
-          </ul>
-        </div>
-        <div className="card">
-          <h4>Counselor</h4>
-          <div className="row items-center gap-3">
-            <img
-              src={submitted?.counselor?.img}
-              alt={submitted?.counselor?.name}
-              style={{ width: 60, height: 60, borderRadius: "50%", objectFit: "cover" }}
-            />
-            <div>
-              <strong>{submitted?.counselor?.name}</strong>
-              <div className="text-muted">{submitted?.counselor?.creds}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="card mt-3">
-        <h4>Focus & goal</h4>
-        <div className="row wrap gap-2 mt-2">
-          {submitted?.focusAreas?.map((t) => (
-            <span className="mini-tag" key={t}>{t}</span>
-          ))}
-        </div>
-        <p className="mt-2">{submitted?.goal}</p>
+        <ul className="kv">
+          <li>
+            <span>Counsellor</span>
+            <strong>{selectedCounsellor?.name}</strong>
+          </li>
+          <li>
+            <span>Date</span>
+            <strong>{values.date}</strong>
+          </li>
+          <li>
+            <span>Time Slot</span>
+            <strong>{SLOT_LABELS[values.slot] || values.slot}</strong>
+          </li>
+        </ul>
       </div>
-
-      {submitted?.scores && (
-        <div className="alert info mt-3">
-          <strong>Shared scores:</strong>&nbsp; PHQ-9 {submitted.scores.phq}, GAD-7 {submitted.scores.gad} — {submitted.scores.risk}
-        </div>
-      )}
-
       <div className="row gap-3 mt-3">
-        <button className="btn soft" onClick={() => exportJson(submitted, `${submitted.ticket}.json`)}>
-          Download JSON
-        </button>
-        <button className="btn primary" onClick={() => window.print()}>
-          Print / Save PDF
+        <button className="btn primary" onClick={() => window.location.reload()}>
+          Book Another Appointment
         </button>
       </div>
     </div>
-  );
+  ) : null;
 
   /** ---------- Render ---------- */
 
   return (
     <section className="section">
       <div className="container">
-        {/* Offline banner */}
-        {offline && (
-          <div className="alert warn mb-3">
-            <strong>Offline:</strong>&nbsp; We’ll queue your request and send it when you’re online.
-          </div>
-        )}
-
         {/* Stepper */}
         <div className="stepper">
-          {["You", "Focus", "Schedule", "Preference", "Done"].map((t, i) => (
+          {["Details", "Counsellor", "Date", "Time", "Review", "Done"].map((t, i) => (
             <div key={t} className={`stp ${step === i ? "is-here" : step > i ? "is-done" : ""}`}>
               <div className="dot">{i + 1}</div>
               <div className="txt">{t}</div>
             </div>
           ))}
-          <div className="bar" style={{ width: `${(Math.min(step, 3) / 3) * 100}%` }} />
+          <div className="bar" style={{ width: `${(Math.min(step, 4) / 4) * 100}%` }} />
         </div>
 
         {/* Content */}
@@ -532,10 +483,11 @@ export default function Appointments() {
           {step === 1 && Step2}
           {step === 2 && Step3}
           {step === 3 && Step4}
-          {step === 4 && Review}
+          {step === 4 && Step5}
+          {step === 5 && Step6}
 
           {/* Actions */}
-          {step < 4 && (
+          {step < 5 && (
             <div className="row justify-between mt-3">
               <div className="row gap-2">
                 {step > 0 && (
@@ -545,52 +497,24 @@ export default function Appointments() {
                 )}
               </div>
               <div className="row gap-2">
-                {step < 3 && (
-                  <button
-                    type="button"
-                    className="btn primary"
-                    onClick={() => {
-                      // lightweight validation gate for current step
-                      if (step === 0) {
-                        if (!values.firstName || !values.lastName || !values.email) {
-                          toast.error("Please fill your basic details");
-                          return;
-                        }
-                      }
-                      if (step === 1) {
-                        if (!values.focusAreas?.length || !values.goal) {
-                          toast.error("Pick focus & write your first goal");
-                          return;
-                        }
-                      }
-                      if (step === 2) {
-                        if (!values.date || !values.time) {
-                          toast.error("Choose a date and a time slot");
-                          return;
-                        }
-                      }
-                      next();
-                    }}
-                  >
+                {step < 4 && (
+                  <button type="button" className="btn primary" onClick={next}>
                     Next →
                   </button>
                 )}
-                {step === 3 && (
-                  <button className="btn primary" type="submit" disabled={isSubmitting || !isValid}>
-                    {isSubmitting ? "Sending…" : "Request Appointment"}
+                {step === 4 && (
+                  <button
+                    className="btn primary"
+                    type="submit"
+                    disabled={isSubmitting || !isValid}
+                  >
+                    {isSubmitting ? "Booking..." : "Book Appointment"}
                   </button>
                 )}
               </div>
             </div>
           )}
         </form>
-
-        {/* Tiny footer line */}
-        {step < 4 && (
-          <p className="fs-14 text-muted mt-3">
-            Private by default. Your draft autosaves locally and can be cleared anytime.
-          </p>
-        )}
       </div>
     </section>
   );

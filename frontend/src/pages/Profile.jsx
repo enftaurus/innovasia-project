@@ -19,18 +19,29 @@ export default function Profile() {
       try {
         setErrMsg("");
         // Backend reads HttpOnly cookie; no email in URL
-        const res = await axios.get("/profile/"); // axios.defaults.baseURL + withCredentials recommended globally
+        const res = await axios.get("http://127.0.0.1:8000/profile/", {
+          withCredentials: true, // ✅ Required to send cookies
+        });
         if (!cancelled) setProfile(res.data.profile);
       } catch (err) {
         const status = err?.response?.status;
+        console.error("❌ Error fetching profile:", err);
+        console.error("Response status:", status);
+        console.error("Response data:", err?.response?.data);
+        
         if (status === 401) {
-          // session expired → logout and redirect
+          // Only logout if it's actually a 401 (unauthorized)
+          console.log("401 Unauthorized - logging out");
           try { await logout(); } catch {}
-          if (!cancelled) nav("/login", { replace: true });
+          if (!cancelled) {
+            setErrMsg("Session expired. Please log in again.");
+            nav("/login", { replace: true });
+          }
           return;
         }
-        if (!cancelled) setErrMsg("Couldn’t load your profile. Please try again.");
-        console.error("❌ Error fetching profile:", err);
+        if (!cancelled) {
+          setErrMsg(err?.response?.data?.detail || "Couldn't load your profile. Please try again.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

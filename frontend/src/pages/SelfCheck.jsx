@@ -120,7 +120,10 @@ export default function SelfCheck() {
     setLoadingOverlay(true);
     try {
       const payload = { phq9: phqScore, gad7: gadScore, ...data.extras };
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/submit-assessment`, payload);
+      const apiUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const res = await axios.post(`${apiUrl}/submit-assessment/`, payload, {
+        withCredentials: true, // ✅ Required to send cookies
+      });
       setServerMessage(res.data.message || "");
       setAiFeedback(res.data.ai_feedback || "");
       setResultScore(dialScore);

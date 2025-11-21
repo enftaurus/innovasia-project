@@ -337,7 +337,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🧩 Auto-detect login via cookie
+  // 🧩 Auto-detect login via cookie (read directly from cookie)
   useEffect(() => {
     const mail = Cookies.get("user_mail");
     if (mail) {
@@ -393,9 +393,19 @@ export function AuthProvider({ children }) {
   };
 
   // 🚪 Logout (clears cookie + state)
-  const logout = () => {
-    Cookies.remove("user_mail");
-    setUser(null);
+  const logout = async () => {
+    try {
+      // Call backend to clear HttpOnly cookie
+      await axios.post("http://127.0.0.1:8000/logout/", {}, {
+        withCredentials: true,
+      });
+    } catch (err) {
+      console.error("Logout error:", err);
+    } finally {
+      // Clear local state regardless
+      Cookies.remove("user_mail");
+      setUser(null);
+    }
   };
 
   const value = { user, login, logout, loading, isAuthenticated: !!user };
